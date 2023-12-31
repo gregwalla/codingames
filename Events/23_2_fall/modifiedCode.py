@@ -174,8 +174,7 @@ class Drone(NamedTuple):
     dead: bool
     battery: int
     scans: List[int]
-
-
+               
 
 
 ############################################################################################################
@@ -282,6 +281,7 @@ flags_1 : List[bool] = [False] * len(points)
 flags_2 : List[bool] = [False] * len(points)
 flags = [flags_1, flags_2]
 
+min_fishes_scanned = 3
 
 ############################################################################################################
 
@@ -306,6 +306,14 @@ if not testing :
         my_drones = get_my_drones(verbose = True)
         foe_drones = get_foe_drones(verbose = True)
         drone_by_id = add_drone_scans(drone_by_id, verbose = True)
+         
+        # Example of drones_by_id : 
+        # drones_by_id: {
+        #     0: Drone(drone_id=0, pos=Vector(x=2000, y=5600), dead=False, battery=25, scans=[11]), 
+        #     2: Drone(drone_id=2, pos=Vector(x=4400, y=5000), dead=False, battery=25, scans=[4, 5, 7]), 
+        #     1: Drone(drone_id=1, pos=Vector(x=7149, y=5043), dead=False, battery=22, scans=[5, 6, 10, 13]), 
+        #     3: Drone(drone_id=3, pos=Vector(x=2874, y=5140), dead=False, battery=22, scans=[4, 11, 7])} 
+
         visible_fish = get_visible_fish(verbose = True)
         my_radar_blips = get_my_radar_blips(my_radar_blips, verbose =True )
         
@@ -339,6 +347,17 @@ if not testing :
                     moved = True
 
             if moved == False :
+
+
+                if len(drone.scans) >= min_fishes_scanned :
+
+                    print(f"MOVE {5000} {500} {0} SURFACE")
+                    
+                    moved = True
+
+            if moved == False :
+
+
                 if False in flags[i] : 
                     
                 # Find the closest point
