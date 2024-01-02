@@ -3,10 +3,13 @@ import math
 import numpy as np
 import sys
 
+# testing may be set to True when testing the code locally
 testing = False
-############################################################################################################
+
+
+#########################
 # Define input functions: 
-############################################################################################################
+#########################
 
 def get_fish_details(fish_details, verbose: bool = False ):
     
@@ -125,9 +128,11 @@ def get_my_radar_blips(my_radar_blips, verbose: bool = False ):
 
     return my_radar_blips
 
-############################################################################################################
+
+##############################
 # Define the data structures :
-############################################################################################################
+##############################
+
 class Vector(NamedTuple):
     x: int
     y: int
@@ -175,12 +180,37 @@ class Drone(NamedTuple):
     battery: int
     scans: List[int]
                
+# # Existing definitions of Drone, Vector, and other necessary classes ...
+# my_drones: [
+#     Drone(drone_id=0, pos=Vector(x=2994, y=5734), dead=False, battery=30, scans=[]), 
+#     Drone(drone_id=2, pos=Vector(x=380, y=7249), dead=False, battery=29, scans=[])] 
+
+class MyDroneState:
+    def __init__(self, drone_id: int, initial_min_scans: int = 5):
+        self.drone_id = drone_id
+        self.drone_surfaced = False
+        self.min_drones_scans = initial_min_scans
+        self.was_dead = True
 
 
-############################################################################################################
-# Define the game functions
-############################################################################################################
-    
+    def update_status(self, drone: Drone):
+    # Check if the drone has surfaced
+        if drone.pos.y <= 500 and not self.was_dead :
+            self.drones_surfaced = True
+            self.min_drones_scans = 1  # Only one fish scan needed after surfacing
+
+    def should_surface(self, drone: Drone) -> bool:
+        if self.was_dead:
+            # The drone was dead in the previous state, don't surface even if it has reached the threshold now
+            return False
+        else:
+            # Surface if alive and number of scans is greater than or equal to the threshold
+            return len(drone.scans) >= self.min_drones_scans
+        
+    def __repr__(self):
+        return (f"MyDroneState(drone_id={self.drone_id}, drone_surfaced={self.drone_surfaced}, "
+                f"min_drones_scans={self.min_drones_scans}, was_dead={self.was_dead})")
+
 # Function to calculate distance
 def calculate_distance(point1: Vector, point2: Vector) -> float:
     return int(math.sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2))
@@ -197,6 +227,14 @@ def find_closest(drone_position: Vector, points: List[Vector], flags: List[bool]
                 min_index = i
     return min_index
 
+#######################
+#end of part1
+#######################
+
+
+#######################
+#part2
+#######################
 
 def flee(drone_position: Vector, boundary: Vector, monsters_list: List[Fish]) -> Vector:
     max_distance = 600  # Maximum distance the drone can move in one turn
@@ -265,67 +303,97 @@ def flee(drone_position: Vector, boundary: Vector, monsters_list: List[Fish]) ->
 
         return flee_position
 
-############################################################################################################
-# Define the game variables
-############################################################################################################
+
     
-# Define the points
-points: List[Vector] = [Vector(2000, 2500), Vector(2000, 5000), Vector(2000, 8000), Vector(5000, 8000),
-                        Vector(5000, 5000), Vector(5000, 2500), Vector(8000, 2500), Vector(8000, 5000),
-                        Vector(8000, 8000)]
 
-boundary = Vector(10000, 10000)
 
-#flags: List[bool] = [False] * len(points)  # Initialize flags
-flags_1 : List[bool] = [False] * len(points)
-flags_2 : List[bool] = [False] * len(points)
-flags = [flags_1, flags_2]
-
-min_fishes_scanned = 3
-
-############################################################################################################
+#################
 
 if not testing :
 
+    ############################
+    # Define the game variables:
+    ############################
+
+    # Define the points
+    points: List[Vector] = [Vector(2000, 2500), Vector(2000, 5000), Vector(2000, 8000), Vector(5000, 8000),
+                            Vector(5000, 5000), Vector(5000, 2500), Vector(8000, 2500), Vector(8000, 5000),
+                            Vector(8000, 8000)]
+
+    boundary = Vector(10000, 10000)
+
+    #flags: List[bool] = [False] * len(points)  # Initialize flags
+    flags_1 : List[bool] = [False] * len(points)
+    flags_2 : List[bool] = [False] * len(points)
+    flags = [flags_1, flags_2]
+
+    min_fishes_scanned = 3
+
     fish_details: Dict[int, FishDetail] = {}
     fish_details = get_fish_details(fish_details, verbose = True)
+    my_states = {}
+    Turn = 0
+    threshold_distance = 1640
 
-    #first_turn = True
-    ############################################################################################################
+
+    #############
     # game loop
-    ############################################################################################################
+    #############
     while True:
+
+        #############
+        # Parse the input
+        #############
+        
 
         drone_by_id: Dict[int, Drone] = {}
         my_radar_blips: Dict[int, List[RadarBlip]] = {}
         
 
-        my_score, foe_score = get_scores(verbose = True)
-        my_scans = get_my_scans(verbose = True)
-        foe_scan = get_foe_scans(verbose = True)
-        my_drones = get_my_drones(verbose = True)
+        my_score, foe_score = get_scores(verbose = False)
+        my_scans = get_my_scans(verbose = False)
+        foe_scans = get_foe_scans(verbose = False)
+        my_drones = get_my_drones(verbose = False)
+        # my_drones: [
+        #     Drone(drone_id=0, pos=Vector(x=2994, y=5734), dead=False, battery=30, scans=[]), 
+        #     Drone(drone_id=2, pos=Vector(x=380, y=7249), dead=False, battery=29, scans=[])] 
         foe_drones = get_foe_drones(verbose = True)
         drone_by_id = add_drone_scans(drone_by_id, verbose = True)
-         
         # Example of drones_by_id : 
         # drones_by_id: {
         #     0: Drone(drone_id=0, pos=Vector(x=2000, y=5600), dead=False, battery=25, scans=[11]), 
         #     2: Drone(drone_id=2, pos=Vector(x=4400, y=5000), dead=False, battery=25, scans=[4, 5, 7]), 
         #     1: Drone(drone_id=1, pos=Vector(x=7149, y=5043), dead=False, battery=22, scans=[5, 6, 10, 13]), 
         #     3: Drone(drone_id=3, pos=Vector(x=2874, y=5140), dead=False, battery=22, scans=[4, 11, 7])} 
-
         visible_fish = get_visible_fish(verbose = True)
         my_radar_blips = get_my_radar_blips(my_radar_blips, verbose =True )
         
 
+        print(f'my_drones:{my_drones}', file=sys.stderr, flush=True)
+
+
+        #############
+        # update the game variables
+        #############
 
         # isolate monsters:
-        # Create a list of monsters including their details 
         monster_creatures = [fish for fish in visible_fish if fish.detail.type == -1]
-        # if verbose:
         #print(f"monster_creatures: {monster_creatures} ", file=sys.stderr, flush=True)
         
-        threshold_distance = 1640
+        # Instantiate MyDroneState for each drone
+        if Turn == 0:
+            for drone in my_drones:
+                my_states[drone.drone_id] = MyDroneState(drone.drone_id)  # Pass only the drone_id, not the whole drone
+        else: 
+            for drone in my_drones:
+                my_states[drone.drone_id].update_status(drone)
+                print(f"my_states: {my_states}", file=sys.stderr, flush=True)
+
+
+        #############
+        # Action decision tree by drone 
+        #############
+
 
         for i, drone in enumerate(my_drones):
             print(f"drone: {drone} ", file=sys.stderr, flush=True)
@@ -351,7 +419,7 @@ if not testing :
 
                 if len(drone.scans) >= min_fishes_scanned :
 
-                    print(f"MOVE {5000} {500} {0} SURFACE")
+                    print(f"MOVE {drone.pos.x} {490} {0} SURFACE")
                     
                     moved = True
 
@@ -386,3 +454,4 @@ if not testing :
                     
                     print(f"MOVE {5000} {500} {0} SURFACE")
 
+        Turn += 1

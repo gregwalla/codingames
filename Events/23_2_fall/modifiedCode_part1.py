@@ -1,0 +1,228 @@
+from typing import List, NamedTuple, Dict
+import math
+import numpy as np
+import sys
+
+# testing may be set to True when testing the code locally
+testing = False
+
+
+#########################
+# Define input functions: 
+#########################
+
+def get_fish_details(fish_details, verbose: bool = False ):
+    
+    fish_count = int(input())
+    for _ in range(fish_count):
+        fish_id, color, _type = map(int, input().split())
+        fish_details[fish_id] = FishDetail(color, _type)
+    if verbose:
+        print(f"fish_details: {fish_details} ", file=sys.stderr, flush=True)    
+    return fish_details
+
+
+def get_scores(verbose: bool = False):
+    my_score = int(input())
+    foe_score = int(input())
+
+    if verbose:
+        print(f'my_score: {my_score} foe sc.{ foe_score}', file=sys.stderr, flush=True)
+    
+    return my_score, foe_score
+
+def get_my_scans(verbose: bool = False):
+    my_scans: List[int] = []
+    my_scan_count = int(input())
+    for _ in range(my_scan_count):
+        fish_id = int(input())
+        my_scans.append(fish_id)
+    if verbose:
+        print(f"my_scans: {my_scans} ", file=sys.stderr, flush=True)
+    
+    return my_scans
+    
+def get_foe_scans(verbose: bool = False):
+    foe_scans: List[int] = []
+    foe_scan_count = int(input())
+    for _ in range(foe_scan_count):
+        fish_id = int(input())
+        foe_scans.append(fish_id)
+    if verbose:
+        print(f"foe_scans: {foe_scans} ", file=sys.stderr, flush=True)
+
+    return foe_scans
+
+def get_my_drones(verbose: bool = False):
+
+    my_drones: List[Drone] = []
+
+    my_drone_count = int(input())
+
+    for _ in range(my_drone_count):
+        drone_id, drone_x, drone_y, dead, battery = map(int, input().split())
+        pos = Vector(drone_x, drone_y)
+        drone = Drone(drone_id, pos, dead == '1', battery, [])
+        drone_by_id[drone_id] = drone
+        my_drones.append(drone)
+
+        my_radar_blips[drone_id] = []
+
+    if verbose:
+        print(f"my_drones: {my_drones} ", file=sys.stderr, flush=True)
+    
+    return my_drones
+
+def get_foe_drones(verbose: bool = False):
+    foe_drones: List[Drone] = []
+    foe_drone_count = int(input())
+    
+    for _ in range(foe_drone_count):
+        drone_id, drone_x, drone_y, dead, battery = map(int, input().split())
+        pos = Vector(drone_x, drone_y)
+        drone = Drone(drone_id, pos, dead == '1', battery, [])
+        drone_by_id[drone_id] = drone
+        foe_drones.append(drone)
+    if verbose:
+        print(f"foe_drones: {foe_drones} ", file=sys.stderr, flush=True)
+
+    return foe_drones
+
+def add_drone_scans(drone_by_id, verbose: bool = False):
+    drone_scan_count = int(input())
+    for _ in range(drone_scan_count):
+        drone_id, fish_id = map(int, input().split())
+        drone_by_id[drone_id].scans.append(fish_id)
+    if verbose:
+        print(f"drones_by_id: {drone_by_id} ", file=sys.stderr, flush=True)
+
+    return drone_by_id
+
+def get_visible_fish(verbose: bool = False):
+    visible_fish: List[Fish] = []
+
+    visible_fish_count = int(input())
+
+    for _ in range(visible_fish_count):
+        fish_id, fish_x, fish_y, fish_vx, fish_vy = map(int, input().split())
+        pos = Vector(fish_x, fish_y)
+        speed = Vector(fish_vx, fish_vy)
+        visible_fish.append(Fish(fish_id, pos, speed, fish_details[fish_id]))
+    if verbose:
+        print(f"visible_fish: {visible_fish} ", file=sys.stderr, flush=True)
+    
+    return visible_fish
+
+
+def get_my_radar_blips(my_radar_blips, verbose: bool = False ):
+    
+    my_radar_blip_count = int(input())
+    
+    for _ in range(my_radar_blip_count):
+        drone_id, fish_id, dir = input().split()
+        drone_id = int(drone_id)
+        fish_id = int(fish_id)
+        my_radar_blips[drone_id].append(RadarBlip(fish_id, dir))
+    if verbose:
+        print(f"my_radar_blips: {my_radar_blips} ", file=sys.stderr, flush=True)
+
+    return my_radar_blips
+
+
+##############################
+# Define the data structures :
+##############################
+
+class Vector(NamedTuple):
+    x: int
+    y: int
+
+    def add(self, other):
+        return Vector(self.x + other.x, self.y + other.y)
+
+    def subtract(self, other):
+        return Vector(self.x - other.x, self.y - other.y)
+
+    def divide(self, scalar):
+        return Vector(self.x / scalar, self.y / scalar)
+
+    def multiply(self, scalar):
+        return Vector(self.x * scalar, self.y * scalar)
+    
+    def normalize(self):
+        magnitude = math.sqrt(self.x ** 2 + self.y ** 2)
+        if magnitude == 0:
+            return (0, 0)
+        return (self.x / magnitude, self.y / magnitude)
+
+    def distance(self, other):
+        return round(math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2))
+
+
+class FishDetail(NamedTuple):
+    color: int
+    type: int
+
+class Fish(NamedTuple):
+    fish_id: int
+    pos: Vector
+    speed: Vector
+    detail: FishDetail
+
+class RadarBlip(NamedTuple):
+    fish_id: int
+    dir: str
+
+class Drone(NamedTuple):
+    drone_id: int
+    pos: Vector
+    dead: bool
+    battery: int
+    scans: List[int]
+               
+# # Existing definitions of Drone, Vector, and other necessary classes ...
+# my_drones: [
+#     Drone(drone_id=0, pos=Vector(x=2994, y=5734), dead=False, battery=30, scans=[]), 
+#     Drone(drone_id=2, pos=Vector(x=380, y=7249), dead=False, battery=29, scans=[])] 
+
+class MyDroneState:
+    def __init__(self, drone_id: int, initial_min_scans: int = 5):
+        self.drone_id = drone_id
+        self.drone_surfaced = False
+        self.min_drones_scans = initial_min_scans
+        self.was_dead = True
+
+
+    def update_status(self, drone: Drone):
+    # Check if the drone has surfaced
+        if drone.pos.y <= 500 and not self.was_dead :
+            self.drones_surfaced = True
+            self.min_drones_scans = 1  # Only one fish scan needed after surfacing
+
+    def should_surface(self, drone: Drone) -> bool:
+        if self.was_dead:
+            # The drone was dead in the previous state, don't surface even if it has reached the threshold now
+            return False
+        else:
+            # Surface if alive and number of scans is greater than or equal to the threshold
+            return len(drone.scans) >= self.min_drones_scans
+        
+    def __repr__(self):
+        return (f"MyDroneState(drone_id={self.drone_id}, drone_surfaced={self.drone_surfaced}, "
+                f"min_drones_scans={self.min_drones_scans}, was_dead={self.was_dead})")
+
+# Function to calculate distance
+def calculate_distance(point1: Vector, point2: Vector) -> float:
+    return int(math.sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2))
+
+# Function to find the next closest point
+def find_closest(drone_position: Vector, points: List[Vector], flags: List[bool]) -> int:
+    min_distance: float = float('inf')
+    min_index: int = -1
+    for i in range(len(points)):
+        if not flags[i]:
+            distance: float = calculate_distance(drone_position, points[i])
+            if distance < min_distance:
+                min_distance = distance
+                min_index = i
+    return min_index
