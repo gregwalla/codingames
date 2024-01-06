@@ -188,29 +188,34 @@ class Drone(NamedTuple):
 class MyDroneState:
     def __init__(self, drone_id: int, initial_min_scans: int = 5):
         self.drone_id = drone_id
-        self.drone_surfaced = False
+        #self.drone_surfaced = False
         self.min_drones_scans = initial_min_scans
         self.was_dead = True
 
 
     def update_status(self, drone: Drone):
+
     # Check if the drone has surfaced
         if drone.pos.y <= 500 and not self.was_dead :
-            self.drones_surfaced = True
+            #self.drones_surfaced = True
             self.min_drones_scans = 1  # Only one fish scan needed after surfacing
+        if not drone.dead : 
+            self.was_dead = False
+
 
     def should_surface(self, drone: Drone) -> bool:
-        if self.was_dead:
-            # The drone was dead in the previous state, don't surface even if it has reached the threshold now
-            return False
-        else:
             # Surface if alive and number of scans is greater than or equal to the threshold
             return len(drone.scans) >= self.min_drones_scans
         
     def __repr__(self):
-        return (f"MyDroneState(drone_id={self.drone_id}, drone_surfaced={self.drone_surfaced}, "
+        return (f"MyDroneState(drone_id={self.drone_id} "
                 f"min_drones_scans={self.min_drones_scans}, was_dead={self.was_dead})")
 
+
+############################
+# Define the game functions :
+############################
+    
 # Function to calculate distance
 def calculate_distance(point1: Vector, point2: Vector) -> float:
     return int(math.sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2))
@@ -226,3 +231,13 @@ def find_closest(drone_position: Vector, points: List[Vector], flags: List[bool]
                 min_distance = distance
                 min_index = i
     return min_index
+
+def combine_scanned_fish(my_scans, my_drones):
+    all_scans = set(my_scans)
+    for drone in my_drones:
+        all_scans.update(drone.scans)
+    return list(all_scans)
+
+#######################
+#end of part1
+#######################

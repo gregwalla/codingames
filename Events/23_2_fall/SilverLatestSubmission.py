@@ -188,27 +188,25 @@ class Drone(NamedTuple):
 class MyDroneState:
     def __init__(self, drone_id: int, initial_min_scans: int = 5):
         self.drone_id = drone_id
-        self.drone_surfaced = False
+        #self.drone_surfaced = False
         self.min_drones_scans = initial_min_scans
         self.was_dead = True
 
 
     def update_status(self, drone: Drone):
+
     # Check if the drone has surfaced
         if drone.pos.y <= 500 and not self.was_dead :
-            self.drones_surfaced = True
+            #self.drones_surfaced = True
             self.min_drones_scans = 1  # Only one fish scan needed after surfacing
+        if not drone.dead : 
+            self.was_dead = False
 
-    def should_surface(self, drone: Drone) -> bool:
-        if self.was_dead:
-            # The drone was dead in the previous state, don't surface even if it has reached the threshold now
-            return False
-        else:
-            # Surface if alive and number of scans is greater than or equal to the threshold
-            return len(drone.scans) >= self.min_drones_scans
+
+
         
     def __repr__(self):
-        return (f"MyDroneState(drone_id={self.drone_id}, drone_surfaced={self.drone_surfaced}, "
+        return (f"MyDroneState(drone_id={self.drone_id} "
                 f"min_drones_scans={self.min_drones_scans}, was_dead={self.was_dead})")
 
 
@@ -231,6 +229,12 @@ def find_closest(drone_position: Vector, points: List[Vector], flags: List[bool]
                 min_distance = distance
                 min_index = i
     return min_index
+
+def combine_scanned_fish(my_scans, my_drones):
+    all_scans = set(my_scans)
+    for drone in my_drones:
+        all_scans.update(drone.scans)
+    return list(all_scans)
 
 #######################
 #end of part1
@@ -309,7 +313,20 @@ def flee(drone_position: Vector, boundary: Vector, monsters_list: List[Fish]) ->
         return flee_position
 
 
-    
+def estimate_next_positions(drones: List[Drone], previous_positions: List[Drone]):
+    next_positions = []
+    drone_dict = {drone.drone_id: drone for drone in drones}
+    previous_dict = {drone.drone_id: drone for drone in previous_positions}
+
+    for drone_id, drone in drone_dict.items():
+        if drone_id in previous_dict:
+            movement_vector = drone.pos.subtract(previous_dict[drone_id].pos)
+            next_position = drone.pos.add(movement_vector)
+            next_positions.append((drone_id, next_position))
+
+    return next_positions
+
+
 
 
 #################
@@ -335,10 +352,28 @@ if not testing :
     min_fishes_scanned = 3
 
     fish_details: Dict[int, FishDetail] = {}
+
     fish_details = get_fish_details(fish_details, verbose = True)
+
+    # We will distinguish fish and monster details into separate dictionaries
+    fish_only_details = {}
+    monster_details = {}
+
+    # Categorize the fish_details
+    for fish_id, detail in fish_details.items():
+        if detail.type == -1 :
+            monster_details[fish_id] = detail
+        else:
+            fish_only_details[fish_id] = detail
+
+    print(f'fish_only_details: {fish_only_details} ', file=sys.stderr, flush=True)
+    print(f'monster_details: {monster_details} ', file=sys.stderr, flush=True)
+
+
     my_states = {}
     Turn = 0
     threshold_distance = 1640
+    fleing = [False,False]
 
 
     #############
@@ -371,10 +406,14 @@ if not testing :
         #     1: Drone(drone_id=1, pos=Vector(x=7149, y=5043), dead=False, battery=22, scans=[5, 6, 10, 13]), 
         #     3: Drone(drone_id=3, pos=Vector(x=2874, y=5140), dead=False, battery=22, scans=[4, 11, 7])} 
         visible_fish = get_visible_fish(verbose = True)
+        
         my_radar_blips = get_my_radar_blips(my_radar_blips, verbose =True )
         
 
         print(f'my_drones:{my_drones}', file=sys.stderr, flush=True)
+
+        combined_scans = combine_scanned_fish(my_scans, my_drones)
+        print(f'combined_scans:{combined_scans}', file=sys.stderr, flush=True)
 
 
         #############
@@ -383,17 +422,52 @@ if not testing :
 
         # isolate monsters:
         monster_creatures = [fish for fish in visible_fish if fish.detail.type == -1]
-        #print(f"monster_creatures: {monster_creatures} ", file=sys.stderr, flush=True)
+        print(f"monster_details {monster_details} , len : {len(monster_details)} ", file=sys.stderr, flush=True)
         
         # Instantiate MyDroneState for each drone
         if Turn == 0:
-            for drone in my_drones:
-                my_states[drone.drone_id] = MyDroneState(drone.drone_id)  # Pass only the drone_id, not the whole drone
+            for i, drone in enumerate(my_drones):
+                my_states[drone.drone_id] = MyDroneState(drone.drone_id, initial_min_scans  = int(6 - len(monster_details)/2))  # Pass only the drone_id, not the whole drone
         else: 
-            for drone in my_drones:
+            for i, drone in enumerate(my_drones):
                 my_states[drone.drone_id].update_status(drone)
-                print(f"my_states: {my_states}", file=sys.stderr, flush=True)
+        print(f"my_states: {my_states}", file=sys.stderr, flush=True)
 
+
+        def generate_blips_by_drone_and_dir(my_radar_blips, combined_scans, fish_only_details, monster_details):
+            fish_blips = {drone_id: {} for drone_id in my_radar_blips}
+            monster_blips = {drone_id: {} for drone_id in my_radar_blips}
+            
+            for drone_id, blips in my_radar_blips.items():
+                for blip in blips:
+                    # Check if blip is a fish or a monster based on details
+                    if blip.fish_id in monster_details:
+                        # It's a monster, add to monster blips
+                        if blip.dir not in monster_blips[drone_id]:
+                            monster_blips[drone_id][blip.dir] = [blip.fish_id]
+                        else:
+                            monster_blips[drone_id][blip.dir].append(blip.fish_id)
+                    elif blip.fish_id not in combined_scans and blip.fish_id in fish_only_details:
+                        # It's an unscanned fish, add to fish blips
+                        if blip.dir not in fish_blips[drone_id]:
+                            fish_blips[drone_id][blip.dir] = [blip.fish_id]
+                        else:
+                            fish_blips[drone_id][blip.dir].append(blip.fish_id)
+            return fish_blips, monster_blips
+
+        # Assume my_radar_blips, combined_scans, fish_only_details, and monster_details are already defined
+        fish_blips, monster_blips = generate_blips_by_drone_and_dir(my_radar_blips, combined_scans, fish_only_details, monster_details)
+
+        print(f'fish_blips : {fish_blips}', file=sys.stderr, flush=True)
+        print(f'monster_blips : {monster_blips}', file=sys.stderr, flush=True)
+
+        if Turn == 0: 
+            foe_drones_previous = foe_drones
+
+        foes_drones_next = estimate_next_positions(foe_drones, foe_drones_previous)
+        print(f'foes_drones_next : {foes_drones_next}', file=sys.stderr, flush=True)
+
+        foe_drones_previous = foe_drones
 
         #############
         # Action decision tree by drone 
@@ -414,21 +488,29 @@ if not testing :
                 if len(threatening_monsters) > 0:
                     farthest_position = flee(drone.pos, boundary, threatening_monsters)
                     #print(f"farthest_position: {farthest_position}", file=sys.stderr, flush=True)
-                    print(f"MOVE {farthest_position.x} {farthest_position.y} {0} FLEING")
+                    if fleing[i] == True:
+                        print(f"MOVE {farthest_position.x} {farthest_position.y} {0} FLEING Dark")
+                    elif fleing[i] == False : 
+                        print(f"MOVE {farthest_position.x} {farthest_position.y} {1} FLEEING light")
                     #print(f"drone: {drone.drone_id}, flew: x:{farthest_position.x} y: {farthest_position.y}", file=sys.stderr, flush=True)
                     
                     moved = True
+                    fleing[i] = True
+
 
             if moved == False :
 
-
-                if len(drone.scans) >= min_fishes_scanned :
+                fleing[i] = False
+                #if len(drone.scans) >= min_fishes_scanned :
+                if len(drone.scans) >= my_states[drone.drone_id].min_drones_scans:
 
                     print(f"MOVE {drone.pos.x} {490} {0} SURFACE")
                     
                     moved = True
 
+
             if moved == False :
+                fleing[i] = False
 
 
                 if False in flags[i] : 
@@ -456,7 +538,9 @@ if not testing :
                         print(f"MOVE {points[closest_point_index].x} {points[closest_point_index].y} {light} EXPLORING")
                 
                 else: 
+                    fleing[i] = False
                     
                     print(f"MOVE {5000} {500} {0} SURFACE")
 
         Turn += 1
+        print(f"finished Turn: {Turn-1}, fleing : {fleing}", file=sys.stderr, flush=True)
