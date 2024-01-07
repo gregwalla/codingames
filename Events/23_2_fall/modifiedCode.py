@@ -4,7 +4,7 @@ import numpy as np
 import sys
 
 # testing may be set to True when testing the code locally
-testing = False
+testing = True
 
 
 #########################
@@ -157,7 +157,23 @@ class Vector(NamedTuple):
 
     def distance(self, other):
         return round(math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2))
+    
 
+       # Method to find the closest point on the line segment (a, b) to the current point
+    def closest(self, a, b):
+        da = b.y - a.y
+        db = a.x - b.x
+        c1 = da * a.x + db * a.y
+        c2 = -db * self.x + da * self.y
+        det = da * da + db * db
+        if det != 0:
+            cx = (da * c1 - db * c2) / det
+            cy = (da * c2 + db * c1) / det
+        else:
+            # The point is already on the line
+            cx = self.x
+            cy = self.y
+        return Vector(int(cx), int(cy))
 
 class FishDetail(NamedTuple):
     color: int
@@ -179,6 +195,71 @@ class Drone(NamedTuple):
     dead: bool
     battery: int
     scans: List[int]
+    speed: Vector = Vector(0, 0)
+
+
+class Collision:
+    def __init__(self, a, b, t):
+        self.a = a
+        self.b = b
+        self.t = t
+
+    def __repr__(self):
+        return f"Collision between {self.a} and {self.b} at time {self.t}"
+
+
+
+def collision(u1, u2, range = 506):
+    
+    dist = u1.pos.distance(u2.pos)
+
+    print(f"distance: {dist}", file=sys.stderr, flush=True)
+    if dist < range :
+        print(f'dist : {dist}, range : {range}')
+        print('returned collisionbecause dist < range')
+        return Collision(u1, u2, 0.0)
+
+    if u1.speed.x == u2.speed.x and u1.speed.y == u2.speed.y:
+        print("returned none because same speed")
+        return None
+    
+    print('entering collision calc')
+    x = u1.pos.x - u2.pos.x
+    y = u1.pos.y - u2.pos.y
+    myp = Vector(x, y)
+    vx = u1.speed.x - u2.speed.x
+    vy = u1.speed.y - u2.speed.y
+    up = Vector(0, 0)
+    p = up.closest(myp, Vector(x + vx, y + vy))
+    print(f'myp {myp}, vx: {vx}, vy: {vy}, p : {p}')
+    pdist = up.distance(p)
+    mypdist = myp.distance(p)
+    print(f'pdist : {pdist}, mypdist : {mypdist}')
+
+    if pdist < range:
+        print('entering if cond, pdist < range')
+        length = math.sqrt(vx ** 2 + vy ** 2)
+        print(f'length : {length}')
+        backdist = range - pdist
+        # Calculate the new Vector after moving back to the collision point
+        new_x = int(p.x - backdist * (vx / length))
+        new_y = int(p.y - backdist * (vy / length))
+        p = Vector(new_x, new_y)
+        if myp.distance(p) > mypdist:
+            return None
+        pdist = myp.distance(p)
+        if pdist > length:
+            return None
+        t = pdist / length
+
+        return Collision(u1, u2, t)
+    
+    return None
+
+# Example usage
+unit1 = Drone(drone_id=0, pos=Vector(x=5000, y=5000), dead=False, battery=30, scans=[], speed=Vector(x=0, y=0))
+unit2 = Fish(fish_id=16, pos=Vector(x=5000, y=5600), speed=Vector(x=0, y=-100), detail=FishDetail(color=0, type=0))
+# print(collision(unit1, unit2))
                
 # # Existing definitions of Drone, Vector, and other necessary classes ...
 # my_drones: [
